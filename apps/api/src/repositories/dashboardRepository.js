@@ -294,6 +294,8 @@ export async function getDashboard() {
     priorityTasks: tasks
       .filter((task) => ["critical", "high"].includes(task.priority))
       .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority)),
+    allTasks: tasks,
+    allStages: stages,
     workIntake: intakeRows.map((message) => ({
       id: message.id,
       sourceId: message.teams_source_id,

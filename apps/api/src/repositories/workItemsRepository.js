@@ -176,14 +176,19 @@ export async function listProjectOptions() {
     ORDER BY FIELD(p.priority, 'critical', 'high', 'medium', 'low'), p.created_at DESC
   `);
   const stages = await query(`
-    SELECT id, project_id AS projectId, name, stage_order AS stageOrder, status
+    SELECT id, project_id AS projectId, name, stage_order AS stageOrder, status, approval_required AS approvalRequired
     FROM project_stages
     ORDER BY project_id, stage_order, id
   `);
 
   return projects.map((project) => ({
     ...project,
-    stages: stages.filter((stage) => stage.projectId === project.id)
+    stages: stages
+      .filter((stage) => stage.projectId === project.id)
+      .map((stage) => ({
+        ...stage,
+        approvalRequired: Boolean(Number(stage.approvalRequired))
+      }))
   }));
 }
 
@@ -219,6 +224,23 @@ async function getTaskForUpdate(id) {
   }
 
   return task;
+}
+
+async function getStageForUpdate(id) {
+  const [stage] = await query(
+    `
+      SELECT project_id AS projectId, name, status, approval_required AS approvalRequired
+      FROM project_stages
+      WHERE id = :id
+    `,
+    { id }
+  );
+
+  if (!stage) {
+    throw new Error("stage not found");
+  }
+
+  return stage;
 }
 
 export async function createProject(payload) {
@@ -318,9 +340,10 @@ export async function createStage(payload) {
 }
 
 export async function updateStage(id, payload) {
-  const name = requiredString(payload, "name");
-  const status = enumValue(payload, "status", stageStatuses, "todo");
-  const approvalRequired = Boolean(payload.approvalRequired);
+  const current = await getStageForUpdate(id);
+  const name = payload.name === undefined ? current.name : requiredString(payload, "name");
+  const status = optionalEnum(payload, "status", stageStatuses, current.status);
+  const approvalRequired = payload.approvalRequired === undefined ? Boolean(Number(current.approvalRequired)) : Boolean(payload.approvalRequired);
 
   await query(
     `

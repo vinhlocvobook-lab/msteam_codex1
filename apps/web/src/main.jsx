@@ -196,6 +196,7 @@ const defaultTaskForm = {
 };
 
 const projectStatusOptions = ["draft", "in_progress", "blocked", "paused", "done", "cancelled"];
+const stageStatusOptions = ["todo", "in_progress", "blocked", "done", "skipped"];
 const taskStatusOptions = ["todo", "doing", "waiting", "blocked", "review", "done", "cancelled"];
 const priorityOptions = Object.keys(priorityLabels);
 
@@ -217,6 +218,17 @@ function CompactSelect({ label, value, options, labels, onChange }) {
 function ManagementPanel({ dashboard, projects, onChanged }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
+
+  const allTasks = dashboard.allTasks || dashboard.priorityTasks || [];
+  const allStages = dashboard.allStages || projects.flatMap((project) => project.stages.map((stage) => ({ ...stage, projectId: project.id })));
+  const visibleTasks = projectFilter ? allTasks.filter((task) => String(task.projectId) === String(projectFilter)) : allTasks;
+  const visibleStages = projectFilter ? allStages.filter((stage) => String(stage.projectId) === String(projectFilter)) : allStages;
+
+  function projectLabel(projectId) {
+    const project = projects.find((item) => String(item.id) === String(projectId));
+    return project ? `${project.code} · ${project.name}` : "Chưa rõ project";
+  }
 
   async function updateProjectField(project, field, value) {
     setBusy(`project-${project.id}-${field}`);
@@ -247,6 +259,24 @@ function ManagementPanel({ dashboard, projects, onChanged }) {
       });
       await onChanged();
       setNotice("Đã cập nhật task");
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function updateStageField(stage, field, value) {
+    setBusy(`stage-${stage.id}-${field}`);
+    setNotice("");
+
+    try {
+      await apiRequest(`/api/stages/${stage.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ [field]: value })
+      });
+      await onChanged();
+      setNotice("Đã cập nhật stage");
     } catch (err) {
       setNotice(err.message);
     } finally {
@@ -290,11 +320,42 @@ function ManagementPanel({ dashboard, projects, onChanged }) {
     }
   }
 
+  async function deleteStage(stage) {
+    const confirmed = window.confirm(`Xóa stage "${stage.name}"? Task đang gắn stage này sẽ được chuyển về chưa chọn stage.`);
+    if (!confirmed) return;
+
+    setBusy(`stage-${stage.id}-delete`);
+    setNotice("");
+
+    try {
+      await apiRequest(`/api/stages/${stage.id}`, { method: "DELETE" });
+      await onChanged();
+      setNotice("Đã xóa stage");
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <section className="section management-section" id="manage">
       <div className="section-header">
         <h2>Quản lý nhanh</h2>
-        {notice ? <span className="form-notice">{notice}</span> : null}
+        <div className="management-toolbar">
+          <label className="compact-select">
+            Lọc project
+            <select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}>
+              <option value="">Tất cả</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.code}
+                </option>
+              ))}
+            </select>
+          </label>
+          {notice ? <span className="form-notice">{notice}</span> : null}
+        </div>
       </div>
 
       <div className="management-grid">
@@ -343,10 +404,55 @@ function ManagementPanel({ dashboard, projects, onChanged }) {
         </div>
 
         <div className="management-panel">
-          <h3>Tasks ưu tiên cao</h3>
+          <h3>Stages</h3>
           <div className="management-list">
-            {dashboard.priorityTasks.length > 0 ? (
-              dashboard.priorityTasks.map((task) => (
+            {visibleStages.length > 0 ? (
+              visibleStages.map((stage) => (
+                <article key={stage.id} className="management-row">
+                  <div className="management-main">
+                    <strong>{stage.name}</strong>
+                    <span>{projectLabel(stage.projectId)}</span>
+                    <small>Thứ tự {stage.order || stage.stageOrder || "-"} · {stage.approvalRequired ? "Cần approval" : "Không cần approval"}</small>
+                  </div>
+                  <div className="management-actions">
+                    <CompactSelect
+                      label="Status"
+                      value={stage.status}
+                      options={stageStatusOptions}
+                      labels={statusLabels}
+                      onChange={(value) => updateStageField(stage, "status", value)}
+                    />
+                    <label className="compact-check">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(stage.approvalRequired)}
+                        onChange={(event) => updateStageField(stage, "approvalRequired", event.target.checked)}
+                      />
+                      Approval
+                    </label>
+                    <button
+                      type="button"
+                      className="icon-button danger-button"
+                      disabled={busy === `stage-${stage.id}-delete`}
+                      title="Xóa stage"
+                      onClick={() => deleteStage(stage)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">Chưa có stage để quản lý.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="management-panel wide-management-panel">
+          <h3>Tất cả task</h3>
+          <div className="management-list">
+            {visibleTasks.length > 0 ? (
+              visibleTasks.map((task) => (
                 <article key={task.id} className="management-row">
                   <div className="management-main">
                     <strong>{task.title}</strong>
@@ -381,7 +487,7 @@ function ManagementPanel({ dashboard, projects, onChanged }) {
                 </article>
               ))
             ) : (
-              <div className="empty-state">Chưa có task ưu tiên cao để quản lý.</div>
+              <div className="empty-state">Chưa có task để quản lý.</div>
             )}
           </div>
         </div>
