@@ -63,8 +63,21 @@ Biến chính của web:
 
 ## Bước tiếp theo
 
-1. Chuyển API từ dữ liệu seed sang MariaDB.
-2. Thêm CRUD project/stage/task.
-3. Thêm Microsoft SSO bằng MSAL.
-4. Thêm module Teams Sources và Mapping Wizard.
-5. Thêm backfill/sync Teams message.
+1. Thêm CRUD project/stage/task.
+2. Thêm Microsoft SSO bằng MSAL.
+3. Thêm module Teams Sources và Mapping Wizard.
+4. Thêm backfill/sync Teams message.
+
+## Database
+
+Kiểm tra kết nối MariaDB:
+
+```bash
+npm run db:ping --workspace apps/api
+```
+
+Tạo/cập nhật schema:
+
+```bash
+npm run db:migrate --workspace apps/api
+```

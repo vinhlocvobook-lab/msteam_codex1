@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "db:migrate": "node src/scripts/migrate.js",
+    "db:ping": "node src/scripts/ping-db.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

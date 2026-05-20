@@ -1,17 +1,11 @@
-CREATE DATABASE IF NOT EXISTS tasks_management
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE tasks_management;
-
-CREATE TABLE departments (
+CREATE TABLE IF NOT EXISTS departments (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(150) NOT NULL,
   code VARCHAR(80) NULL UNIQUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   microsoft_user_id VARCHAR(255) NULL UNIQUE,
   email VARCHAR(255) NOT NULL UNIQUE,
@@ -22,7 +16,7 @@ CREATE TABLE users (
   FOREIGN KEY (department_id) REFERENCES departments(id)
 );
 
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   code VARCHAR(80) NOT NULL UNIQUE,
   name VARCHAR(255) NOT NULL,
@@ -37,7 +31,7 @@ CREATE TABLE projects (
   FOREIGN KEY (owner_user_id) REFERENCES users(id)
 );
 
-CREATE TABLE project_members (
+CREATE TABLE IF NOT EXISTS project_members (
   project_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
   project_role VARCHAR(120) NOT NULL DEFAULT 'member',
@@ -46,7 +40,7 @@ CREATE TABLE project_members (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TABLE project_stages (
+CREATE TABLE IF NOT EXISTS project_stages (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   project_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(180) NOT NULL,
@@ -58,7 +52,7 @@ CREATE TABLE project_stages (
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   project_id BIGINT UNSIGNED NOT NULL,
   stage_id BIGINT UNSIGNED NULL,
@@ -76,7 +70,7 @@ CREATE TABLE tasks (
   FOREIGN KEY (assignee_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TABLE task_blockers (
+CREATE TABLE IF NOT EXISTS task_blockers (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   task_id BIGINT UNSIGNED NOT NULL,
   description TEXT NOT NULL,
@@ -90,7 +84,7 @@ CREATE TABLE task_blockers (
   FOREIGN KEY (resolved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TABLE teams_sources (
+CREATE TABLE IF NOT EXISTS teams_sources (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   source_type ENUM('team', 'channel', 'group_chat', 'private_chat', 'meeting_chat') NOT NULL,
   microsoft_team_id VARCHAR(255) NULL,
@@ -106,7 +100,7 @@ CREATE TABLE teams_sources (
   FOREIGN KEY (stage_id) REFERENCES project_stages(id) ON DELETE SET NULL
 );
 
-CREATE TABLE teams_messages (
+CREATE TABLE IF NOT EXISTS teams_messages (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   teams_source_id BIGINT UNSIGNED NOT NULL,
   microsoft_message_id VARCHAR(255) NOT NULL,
@@ -124,7 +118,7 @@ CREATE TABLE teams_messages (
   FOREIGN KEY (teams_source_id) REFERENCES teams_sources(id) ON DELETE CASCADE
 );
 
-CREATE TABLE message_task_links (
+CREATE TABLE IF NOT EXISTS message_task_links (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   teams_message_id BIGINT UNSIGNED NOT NULL,
   project_id BIGINT UNSIGNED NULL,
@@ -141,7 +135,7 @@ CREATE TABLE message_task_links (
   FOREIGN KEY (linked_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TABLE approvals (
+CREATE TABLE IF NOT EXISTS approvals (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   project_id BIGINT UNSIGNED NOT NULL,
   stage_id BIGINT UNSIGNED NOT NULL,
@@ -157,7 +151,7 @@ CREATE TABLE approvals (
   FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   actor_user_id BIGINT UNSIGNED NULL,
   entity_type VARCHAR(80) NOT NULL,
