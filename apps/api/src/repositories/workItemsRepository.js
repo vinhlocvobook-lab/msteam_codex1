@@ -15,6 +15,30 @@ function requiredString(payload, field) {
   return value;
 }
 
+function optionalString(payload, field, fallback) {
+  if (payload[field] === undefined) {
+    return fallback;
+  }
+
+  return nullableString(payload, field);
+}
+
+function optionalNumber(payload, field, fallback) {
+  if (payload[field] === undefined) {
+    return fallback;
+  }
+
+  return nullableNumber(payload, field);
+}
+
+function optionalEnum(payload, field, allowed, fallback) {
+  if (payload[field] === undefined || payload[field] === null || payload[field] === "") {
+    return fallback;
+  }
+
+  return enumValue(payload, field, allowed, fallback);
+}
+
 function nullableString(payload, field) {
   const value = payload[field];
 
@@ -137,9 +161,19 @@ export async function deleteUser(id) {
 
 export async function listProjectOptions() {
   const projects = await query(`
-    SELECT id, code, name, customer_name AS customer, owner_user_id AS ownerId, priority, status, due_date AS dueDate
-    FROM projects
-    ORDER BY FIELD(priority, 'critical', 'high', 'medium', 'low'), created_at DESC
+    SELECT
+      p.id,
+      p.code,
+      p.name,
+      p.customer_name AS customer,
+      p.owner_user_id AS ownerId,
+      p.priority,
+      p.status,
+      p.due_date AS dueDate,
+      u.display_name AS ownerName
+    FROM projects p
+    LEFT JOIN users u ON u.id = p.owner_user_id
+    ORDER BY FIELD(p.priority, 'critical', 'high', 'medium', 'low'), p.created_at DESC
   `);
   const stages = await query(`
     SELECT id, project_id AS projectId, name, stage_order AS stageOrder, status
@@ -151,6 +185,40 @@ export async function listProjectOptions() {
     ...project,
     stages: stages.filter((stage) => stage.projectId === project.id)
   }));
+}
+
+async function getProjectForUpdate(id) {
+  const [project] = await query(
+    `
+      SELECT code, name, customer_name AS customer, owner_user_id AS ownerId, priority, status, due_date AS dueDate
+      FROM projects
+      WHERE id = :id
+    `,
+    { id }
+  );
+
+  if (!project) {
+    throw new Error("project not found");
+  }
+
+  return project;
+}
+
+async function getTaskForUpdate(id) {
+  const [task] = await query(
+    `
+      SELECT project_id AS projectId, stage_id AS stageId, title, description, assignee_user_id AS assigneeId, priority, status, due_date AS dueDate
+      FROM tasks
+      WHERE id = :id
+    `,
+    { id }
+  );
+
+  if (!task) {
+    throw new Error("task not found");
+  }
+
+  return task;
 }
 
 export async function createProject(payload) {
@@ -192,13 +260,14 @@ export async function createProject(payload) {
 }
 
 export async function updateProject(id, payload) {
-  const code = requiredString(payload, "code");
-  const name = requiredString(payload, "name");
-  const customer = nullableString(payload, "customer");
-  const ownerId = nullableNumber(payload, "ownerId");
-  const priority = enumValue(payload, "priority", priorities, "medium");
-  const status = enumValue(payload, "status", projectStatuses, "in_progress");
-  const dueDate = nullableString(payload, "dueDate");
+  const current = await getProjectForUpdate(id);
+  const code = payload.code === undefined ? current.code : requiredString(payload, "code");
+  const name = payload.name === undefined ? current.name : requiredString(payload, "name");
+  const customer = optionalString(payload, "customer", current.customer);
+  const ownerId = optionalNumber(payload, "ownerId", current.ownerId);
+  const priority = optionalEnum(payload, "priority", priorities, current.priority);
+  const status = optionalEnum(payload, "status", projectStatuses, current.status);
+  const dueDate = optionalString(payload, "dueDate", current.dueDate);
 
   await query(
     `
@@ -298,19 +367,20 @@ export async function createTask(payload) {
 }
 
 export async function updateTask(id, payload) {
-  const projectId = nullableNumber(payload, "projectId");
+  const current = await getTaskForUpdate(id);
+  const projectId = optionalNumber(payload, "projectId", current.projectId);
 
   if (!projectId) {
     throw new Error("projectId is required");
   }
 
-  const title = requiredString(payload, "title");
-  const description = nullableString(payload, "description");
-  const stageId = nullableNumber(payload, "stageId");
-  const assigneeId = nullableNumber(payload, "assigneeId");
-  const priority = enumValue(payload, "priority", priorities, "medium");
-  const status = enumValue(payload, "status", taskStatuses, "todo");
-  const dueDate = nullableString(payload, "dueDate");
+  const title = payload.title === undefined ? current.title : requiredString(payload, "title");
+  const description = optionalString(payload, "description", current.description);
+  const stageId = optionalNumber(payload, "stageId", current.stageId);
+  const assigneeId = optionalNumber(payload, "assigneeId", current.assigneeId);
+  const priority = optionalEnum(payload, "priority", priorities, current.priority);
+  const status = optionalEnum(payload, "status", taskStatuses, current.status);
+  const dueDate = optionalString(payload, "dueDate", current.dueDate);
 
   await query(
     `

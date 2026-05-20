@@ -45,6 +45,24 @@ button.secondary {
   color: #203239;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.icon-button {
+  align-items: center;
+  height: 38px;
+  justify-content: center;
+  padding: 0;
+  width: 38px;
+}
+
+.danger-button {
+  background: #ffe5e1;
+  color: #b42318;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
@@ -239,6 +257,87 @@ h2 {
   border-radius: 8px;
   color: #60727a;
   padding: 18px;
+}
+
+.management-section {
+  background: #fff;
+  border: 1px solid #d8e2e5;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.management-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.management-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.management-panel h3 {
+  font-size: 17px;
+}
+
+.management-list {
+  display: grid;
+  gap: 12px;
+}
+
+.management-row {
+  align-items: center;
+  background: #f7fafb;
+  border: 1px solid #d8e2e5;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 14px;
+}
+
+.management-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.management-main strong,
+.management-main span,
+.management-main small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.management-main span,
+.management-main small {
+  color: #617278;
+}
+
+.management-actions {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.compact-select {
+  color: #4f6770;
+  display: grid;
+  font-size: 12px;
+  font-weight: 750;
+  gap: 4px;
+}
+
+.compact-select select {
+  background: #fff;
+  border: 1px solid #d4e0e3;
+  border-radius: 8px;
+  color: #172026;
+  min-width: 128px;
+  padding: 8px 9px;
 }
 
 .stats-grid {
@@ -561,6 +660,7 @@ h2 {
   .project-grid,
   .form-grid,
   .form-columns,
+  .management-grid,
   .split-section {
     grid-template-columns: 1fr;
   }
@@ -598,6 +698,14 @@ h2 {
   }
 
   .task-controls {
+    justify-content: flex-start;
+  }
+
+  .management-row {
+    grid-template-columns: 1fr;
+  }
+
+  .management-actions {
     justify-content: flex-start;
   }
 }

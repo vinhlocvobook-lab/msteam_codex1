@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   CircleDot,
   Clock3,
+  Trash2,
   Inbox,
   Layers3,
   MessageSquareText,
@@ -31,6 +32,7 @@ const priorityLabels = {
 
 const statusLabels = {
   draft: "Nháp",
+  paused: "Tạm dừng",
   todo: "Chưa làm",
   doing: "Đang xử lý",
   waiting: "Đang chờ",
@@ -192,6 +194,201 @@ const defaultTaskForm = {
   status: "todo",
   dueDate: ""
 };
+
+const projectStatusOptions = ["draft", "in_progress", "blocked", "paused", "done", "cancelled"];
+const taskStatusOptions = ["todo", "doing", "waiting", "blocked", "review", "done", "cancelled"];
+const priorityOptions = Object.keys(priorityLabels);
+
+function CompactSelect({ label, value, options, labels, onChange }) {
+  return (
+    <label className="compact-select">
+      {label}
+      <select value={value || ""} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {labels[option] || option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ManagementPanel({ dashboard, projects, onChanged }) {
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState("");
+
+  async function updateProjectField(project, field, value) {
+    setBusy(`project-${project.id}-${field}`);
+    setNotice("");
+
+    try {
+      await apiRequest(`/api/projects/${project.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ [field]: value })
+      });
+      await onChanged();
+      setNotice("Đã cập nhật project");
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function updateTaskField(task, field, value) {
+    setBusy(`task-${task.id}-${field}`);
+    setNotice("");
+
+    try {
+      await apiRequest(`/api/tasks/${task.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ [field]: value })
+      });
+      await onChanged();
+      setNotice("Đã cập nhật task");
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteProject(project) {
+    const confirmed = window.confirm(`Xóa project ${project.code}? Các stage/task thuộc project này cũng sẽ bị xóa.`);
+    if (!confirmed) return;
+
+    setBusy(`project-${project.id}-delete`);
+    setNotice("");
+
+    try {
+      await apiRequest(`/api/projects/${project.id}`, { method: "DELETE" });
+      await onChanged();
+      setNotice("Đã xóa project");
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteTask(task) {
+    const confirmed = window.confirm(`Xóa task "${task.title}"?`);
+    if (!confirmed) return;
+
+    setBusy(`task-${task.id}-delete`);
+    setNotice("");
+
+    try {
+      await apiRequest(`/api/tasks/${task.id}`, { method: "DELETE" });
+      await onChanged();
+      setNotice("Đã xóa task");
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <section className="section management-section" id="manage">
+      <div className="section-header">
+        <h2>Quản lý nhanh</h2>
+        {notice ? <span className="form-notice">{notice}</span> : null}
+      </div>
+
+      <div className="management-grid">
+        <div className="management-panel">
+          <h3>Projects</h3>
+          <div className="management-list">
+            {projects.length > 0 ? (
+              projects.map((project) => (
+                <article key={project.id} className="management-row">
+                  <div className="management-main">
+                    <strong>{project.code}</strong>
+                    <span>{project.name}</span>
+                    <small>{project.ownerName || "Chưa có owner"} · {project.stages.length} stage</small>
+                  </div>
+                  <div className="management-actions">
+                    <CompactSelect
+                      label="Priority"
+                      value={project.priority}
+                      options={priorityOptions}
+                      labels={priorityLabels}
+                      onChange={(value) => updateProjectField(project, "priority", value)}
+                    />
+                    <CompactSelect
+                      label="Status"
+                      value={project.status}
+                      options={projectStatusOptions}
+                      labels={statusLabels}
+                      onChange={(value) => updateProjectField(project, "status", value)}
+                    />
+                    <button
+                      type="button"
+                      className="icon-button danger-button"
+                      disabled={busy === `project-${project.id}-delete`}
+                      title="Xóa project"
+                      onClick={() => deleteProject(project)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">Chưa có project để quản lý.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="management-panel">
+          <h3>Tasks ưu tiên cao</h3>
+          <div className="management-list">
+            {dashboard.priorityTasks.length > 0 ? (
+              dashboard.priorityTasks.map((task) => (
+                <article key={task.id} className="management-row">
+                  <div className="management-main">
+                    <strong>{task.title}</strong>
+                    <span>{task.project?.code} · {task.stage?.name || "Chưa có stage"}</span>
+                    <small>{task.assignee?.name || "Chưa giao"} · {task.dueDate || "Chưa có deadline"}</small>
+                  </div>
+                  <div className="management-actions">
+                    <CompactSelect
+                      label="Priority"
+                      value={task.priority}
+                      options={priorityOptions}
+                      labels={priorityLabels}
+                      onChange={(value) => updateTaskField(task, "priority", value)}
+                    />
+                    <CompactSelect
+                      label="Status"
+                      value={task.status}
+                      options={taskStatusOptions}
+                      labels={statusLabels}
+                      onChange={(value) => updateTaskField(task, "status", value)}
+                    />
+                    <button
+                      type="button"
+                      className="icon-button danger-button"
+                      disabled={busy === `task-${task.id}-delete`}
+                      title="Xóa task"
+                      onClick={() => deleteTask(task)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="empty-state">Chưa có task ưu tiên cao để quản lý.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function QuickCreatePanel({ meta, projects, onCreated }) {
   const [departmentForm, setDepartmentForm] = useState({ name: "", code: "" });
@@ -548,6 +745,7 @@ function App() {
         <nav>
           <a className="active" href="#dashboard">Dashboard</a>
           <a href="#quick-create">Nhập dữ liệu</a>
+          <a href="#manage">Quản lý nhanh</a>
           <a href="#projects">Projects</a>
           <a href="#tasks">Tasks</a>
           <a href="#intake">Work Intake</a>
@@ -589,6 +787,8 @@ function App() {
         </section>
 
         <QuickCreatePanel meta={meta} projects={projects} onCreated={loadData} />
+
+        <ManagementPanel dashboard={dashboard} projects={projects} onChanged={loadData} />
 
         <section className="section split-section">
           <div id="tasks">
