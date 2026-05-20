@@ -8,6 +8,7 @@ import {
   Inbox,
   Layers3,
   MessageSquareText,
+  Plus,
   Search,
   ShieldCheck,
   Sparkles,
@@ -29,13 +30,38 @@ const priorityLabels = {
 };
 
 const statusLabels = {
+  draft: "Nháp",
   todo: "Chưa làm",
   doing: "Đang xử lý",
   waiting: "Đang chờ",
   blocked: "Đang vướng",
+  review: "Đang review",
   done: "Hoàn tất",
+  skipped: "Bỏ qua",
+  cancelled: "Đã hủy",
   in_progress: "Đang chạy"
 };
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    ...options
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message || payload.error || "Không thể xử lý yêu cầu");
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  return response.json();
+}
 
 function PriorityBadge({ value }) {
   return <span className={`priority priority-${value}`}>{priorityLabels[value] || value}</span>;
@@ -74,11 +100,11 @@ function ProjectCard({ project }) {
       <div className="project-meta">
         <span>
           <UsersRound size={16} />
-          {project.owner?.name}
+          {project.owner?.name || "Chưa có owner"}
         </span>
         <span>
           <Layers3 size={16} />
-          {project.currentStage?.name}
+          {project.currentStage?.name || "Chưa có stage"}
         </span>
       </div>
 
@@ -106,7 +132,7 @@ function TaskRow({ task }) {
         <div>
           <strong>{task.title}</strong>
           <span>
-            {task.project?.code} · {task.stage?.name} · {task.assignee?.name}
+            {task.project?.code} · {task.stage?.name || "Chưa có stage"} · {task.assignee?.name || "Chưa giao"}
           </span>
           {task.blocker ? <em>{task.blocker}</em> : null}
         </div>
@@ -145,22 +171,336 @@ function IntakeMessage({ message }) {
   );
 }
 
+const defaultProjectForm = {
+  code: "",
+  name: "",
+  customer: "",
+  ownerId: "",
+  priority: "medium",
+  status: "in_progress",
+  dueDate: "",
+  stageNames: "Tư vấn, Đấu thầu, Hợp đồng, Thanh toán, Triển khai, Nghiệm thu"
+};
+
+const defaultTaskForm = {
+  projectId: "",
+  stageId: "",
+  title: "",
+  description: "",
+  assigneeId: "",
+  priority: "medium",
+  status: "todo",
+  dueDate: ""
+};
+
+function QuickCreatePanel({ meta, projects, onCreated }) {
+  const [departmentForm, setDepartmentForm] = useState({ name: "", code: "" });
+  const [userForm, setUserForm] = useState({ name: "", email: "", departmentId: "" });
+  const [projectForm, setProjectForm] = useState(defaultProjectForm);
+  const [stageForm, setStageForm] = useState({ projectId: "", name: "", status: "todo", approvalRequired: false });
+  const [taskForm, setTaskForm] = useState(defaultTaskForm);
+  const [saving, setSaving] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const selectedTaskProject = projects.find((project) => String(project.id) === String(taskForm.projectId));
+  const selectedStageProject = projects.find((project) => String(project.id) === String(stageForm.projectId));
+
+  async function submitForm(event, type, path, payload, reset) {
+    event.preventDefault();
+    setSaving(type);
+    setNotice("");
+
+    try {
+      await apiRequest(path, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      reset();
+      setNotice("Đã lưu dữ liệu mới");
+      await onCreated();
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setSaving("");
+    }
+  }
+
+  return (
+    <section className="section quick-create" id="quick-create">
+      <div className="section-header">
+        <h2>Nhập dữ liệu nhanh</h2>
+        {notice ? <span className="form-notice">{notice}</span> : null}
+      </div>
+
+      <div className="form-grid">
+        <form
+          className="data-form"
+          onSubmit={(event) =>
+            submitForm(event, "department", "/api/departments", departmentForm, () => setDepartmentForm({ name: "", code: "" }))
+          }
+        >
+          <h3>Phòng ban</h3>
+          <label>
+            Tên phòng ban
+            <input value={departmentForm.name} onChange={(event) => setDepartmentForm({ ...departmentForm, name: event.target.value })} required />
+          </label>
+          <label>
+            Mã
+            <input value={departmentForm.code} onChange={(event) => setDepartmentForm({ ...departmentForm, code: event.target.value })} />
+          </label>
+          <button type="submit" disabled={saving === "department"}>
+            <Plus size={16} />
+            Thêm phòng ban
+          </button>
+        </form>
+
+        <form
+          className="data-form"
+          onSubmit={(event) => submitForm(event, "user", "/api/users", userForm, () => setUserForm({ name: "", email: "", departmentId: "" }))}
+        >
+          <h3>User</h3>
+          <label>
+            Tên
+            <input value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} required />
+          </label>
+          <label>
+            Email
+            <input type="email" value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} required />
+          </label>
+          <label>
+            Phòng ban
+            <select value={userForm.departmentId} onChange={(event) => setUserForm({ ...userForm, departmentId: event.target.value })}>
+              <option value="">Chưa chọn</option>
+              {meta.departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" disabled={saving === "user"}>
+            <Plus size={16} />
+            Thêm user
+          </button>
+        </form>
+
+        <form
+          className="data-form wide-form"
+          onSubmit={(event) =>
+            submitForm(
+              event,
+              "project",
+              "/api/projects",
+              {
+                ...projectForm,
+                stageNames: projectForm.stageNames
+                  .split(",")
+                  .map((stage) => stage.trim())
+                  .filter(Boolean)
+              },
+              () => setProjectForm(defaultProjectForm)
+            )
+          }
+        >
+          <h3>Project</h3>
+          <div className="form-columns">
+            <label>
+              Mã project
+              <input value={projectForm.code} onChange={(event) => setProjectForm({ ...projectForm, code: event.target.value })} required />
+            </label>
+            <label>
+              Tên project
+              <input value={projectForm.name} onChange={(event) => setProjectForm({ ...projectForm, name: event.target.value })} required />
+            </label>
+            <label>
+              Khách hàng
+              <input value={projectForm.customer} onChange={(event) => setProjectForm({ ...projectForm, customer: event.target.value })} />
+            </label>
+            <label>
+              Owner
+              <select value={projectForm.ownerId} onChange={(event) => setProjectForm({ ...projectForm, ownerId: event.target.value })}>
+                <option value="">Chưa chọn</option>
+                {meta.users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Priority
+              <select value={projectForm.priority} onChange={(event) => setProjectForm({ ...projectForm, priority: event.target.value })}>
+                {Object.entries(priorityLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Deadline
+              <input type="date" value={projectForm.dueDate} onChange={(event) => setProjectForm({ ...projectForm, dueDate: event.target.value })} />
+            </label>
+          </div>
+          <label>
+            Các giai đoạn ban đầu
+            <input value={projectForm.stageNames} onChange={(event) => setProjectForm({ ...projectForm, stageNames: event.target.value })} />
+          </label>
+          <button type="submit" disabled={saving === "project"}>
+            <Plus size={16} />
+            Tạo project
+          </button>
+        </form>
+
+        <form
+          className="data-form"
+          onSubmit={(event) =>
+            submitForm(event, "stage", "/api/stages", stageForm, () => setStageForm({ projectId: "", name: "", status: "todo", approvalRequired: false }))
+          }
+        >
+          <h3>Stage</h3>
+          <label>
+            Project
+            <select value={stageForm.projectId} onChange={(event) => setStageForm({ ...stageForm, projectId: event.target.value })} required>
+              <option value="">Chọn project</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.code} - {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tên stage
+            <input value={stageForm.name} onChange={(event) => setStageForm({ ...stageForm, name: event.target.value })} required />
+          </label>
+          <label>
+            Trạng thái
+            <select value={stageForm.status} onChange={(event) => setStageForm({ ...stageForm, status: event.target.value })}>
+              {["todo", "in_progress", "blocked", "done", "skipped"].map((status) => (
+                <option key={status} value={status}>
+                  {statusLabels[status] || status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={stageForm.approvalRequired}
+              onChange={(event) => setStageForm({ ...stageForm, approvalRequired: event.target.checked })}
+            />
+            Cần approval
+          </label>
+          {selectedStageProject ? <p className="form-helper">{selectedStageProject.stages.length} stage hiện có</p> : null}
+          <button type="submit" disabled={saving === "stage"}>
+            <Plus size={16} />
+            Thêm stage
+          </button>
+        </form>
+
+        <form
+          className="data-form wide-form"
+          onSubmit={(event) => submitForm(event, "task", "/api/tasks", taskForm, () => setTaskForm(defaultTaskForm))}
+        >
+          <h3>Task</h3>
+          <div className="form-columns">
+            <label>
+              Project
+              <select value={taskForm.projectId} onChange={(event) => setTaskForm({ ...taskForm, projectId: event.target.value, stageId: "" })} required>
+                <option value="">Chọn project</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.code} - {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Stage
+              <select value={taskForm.stageId} onChange={(event) => setTaskForm({ ...taskForm, stageId: event.target.value })}>
+                <option value="">Chưa chọn</option>
+                {(selectedTaskProject?.stages || []).map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Assignee
+              <select value={taskForm.assigneeId} onChange={(event) => setTaskForm({ ...taskForm, assigneeId: event.target.value })}>
+                <option value="">Chưa giao</option>
+                {meta.users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Priority
+              <select value={taskForm.priority} onChange={(event) => setTaskForm({ ...taskForm, priority: event.target.value })}>
+                {Object.entries(priorityLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Trạng thái
+              <select value={taskForm.status} onChange={(event) => setTaskForm({ ...taskForm, status: event.target.value })}>
+                {["todo", "doing", "waiting", "blocked", "review", "done", "cancelled"].map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabels[status] || status}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Deadline
+              <input type="date" value={taskForm.dueDate} onChange={(event) => setTaskForm({ ...taskForm, dueDate: event.target.value })} />
+            </label>
+          </div>
+          <label>
+            Tiêu đề task
+            <input value={taskForm.title} onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} required />
+          </label>
+          <label>
+            Mô tả
+            <textarea value={taskForm.description} onChange={(event) => setTaskForm({ ...taskForm, description: event.target.value })} rows={3} />
+          </label>
+          <button type="submit" disabled={saving === "task"}>
+            <Plus size={16} />
+            Tạo task
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const [dashboard, setDashboard] = useState(null);
+  const [meta, setMeta] = useState({ priorities: [], departments: [], users: [] });
+  const [projects, setProjects] = useState([]);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/dashboard`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error("Không thể tải dashboard");
-        }
+  async function loadData() {
+    const [dashboardData, metaData, projectData] = await Promise.all([
+      apiRequest("/api/dashboard"),
+      apiRequest("/api/meta"),
+      apiRequest("/api/projects")
+    ]);
+    setDashboard(dashboardData);
+    setMeta(metaData);
+    setProjects(projectData);
+  }
 
-        return response.json();
-      })
-      .then(setDashboard)
-      .catch((err) => setError(err.message));
+  useEffect(() => {
+    loadData().catch((err) => setError(err.message));
   }, []);
 
   const filteredProjects = useMemo(() => {
@@ -207,6 +547,7 @@ function App() {
 
         <nav>
           <a className="active" href="#dashboard">Dashboard</a>
+          <a href="#quick-create">Nhập dữ liệu</a>
           <a href="#projects">Projects</a>
           <a href="#tasks">Tasks</a>
           <a href="#intake">Work Intake</a>
@@ -236,14 +577,18 @@ function App() {
         <section className="section" id="projects">
           <div className="section-header">
             <h2>Projects ưu tiên</h2>
-            <button type="button">Tạo project</button>
+            <a className="button-link" href="#quick-create">Tạo project</a>
           </div>
           <div className="project-grid">
-            {filteredProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
+            {filteredProjects.length > 0 ? (
+              filteredProjects.map((project) => <ProjectCard key={project.id} project={project} />)
+            ) : (
+              <div className="empty-state">Chưa có project nào. Tạo project đầu tiên ở phần nhập dữ liệu nhanh.</div>
+            )}
           </div>
         </section>
+
+        <QuickCreatePanel meta={meta} projects={projects} onCreated={loadData} />
 
         <section className="section split-section">
           <div id="tasks">
@@ -251,9 +596,11 @@ function App() {
               <h2>Task cần chú ý</h2>
             </div>
             <div className="task-list">
-              {dashboard.priorityTasks.map((task) => (
-                <TaskRow key={task.id} task={task} />
-              ))}
+              {dashboard.priorityTasks.length > 0 ? (
+                dashboard.priorityTasks.map((task) => <TaskRow key={task.id} task={task} />)
+              ) : (
+                <div className="empty-state">Chưa có task ưu tiên cao.</div>
+              )}
             </div>
           </div>
 
@@ -263,9 +610,11 @@ function App() {
               <MessageSquareText size={20} />
             </div>
             <div className="intake-list">
-              {dashboard.workIntake.map((message) => (
-                <IntakeMessage key={message.id} message={message} />
-              ))}
+              {dashboard.workIntake.length > 0 ? (
+                dashboard.workIntake.map((message) => <IntakeMessage key={message.id} message={message} />)
+              ) : (
+                <div className="empty-state">Chưa có message Teams chờ phân loại.</div>
+              )}
             </div>
           </div>
         </section>

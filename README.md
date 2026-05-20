@@ -81,3 +81,26 @@ Tạo/cập nhật schema:
 ```bash
 npm run db:migrate --workspace apps/api
 ```
+
+## API hiện có
+
+- `GET /api/dashboard`
+- `GET /api/meta`
+- `GET /api/projects`
+- `POST /api/projects`
+- `PUT /api/projects/:projectId`
+- `DELETE /api/projects/:projectId`
+- `POST /api/stages`
+- `PUT /api/stages/:stageId`
+- `DELETE /api/stages/:stageId`
+- `POST /api/tasks`
+- `PUT /api/tasks/:taskId`
+- `DELETE /api/tasks/:taskId`
+- `GET /api/departments`
+- `POST /api/departments`
+- `PUT /api/departments/:departmentId`
+- `DELETE /api/departments/:departmentId`
+- `GET /api/users`
+- `POST /api/users`
+- `PUT /api/users/:userId`
+- `DELETE /api/users/:userId`

@@ -19,18 +19,25 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
-button {
+button,
+.button-link {
+  align-items: center;
   border: 0;
   border-radius: 8px;
   background: #1f6f78;
   color: #fff;
   cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
   font-weight: 700;
   padding: 10px 14px;
+  text-decoration: none;
 }
 
 button.secondary {
@@ -142,6 +149,96 @@ h2 {
   min-width: 0;
   outline: 0;
   width: 100%;
+}
+
+.quick-create {
+  background: #e9f1f2;
+  border: 1px solid #d3e1e4;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.data-form {
+  background: #fff;
+  border: 1px solid #d8e2e5;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.data-form.wide-form {
+  grid-column: 1 / -1;
+}
+
+.data-form h3 {
+  font-size: 17px;
+}
+
+.data-form label {
+  color: #4f6770;
+  display: grid;
+  font-size: 13px;
+  font-weight: 750;
+  gap: 7px;
+}
+
+.data-form input,
+.data-form select,
+.data-form textarea {
+  background: #fbfdfd;
+  border: 1px solid #d4e0e3;
+  border-radius: 8px;
+  color: #172026;
+  min-width: 0;
+  outline: 0;
+  padding: 10px 11px;
+  width: 100%;
+}
+
+.data-form textarea {
+  resize: vertical;
+}
+
+.form-columns {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.checkbox-label {
+  align-items: center;
+  display: flex !important;
+  flex-direction: row;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.form-helper,
+.form-notice {
+  color: #4f6770;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.form-notice {
+  color: #1f6f78;
+}
+
+.empty-state {
+  background: #fff;
+  border: 1px dashed #b8c8cd;
+  border-radius: 8px;
+  color: #60727a;
+  padding: 18px;
 }
 
 .stats-grid {
@@ -462,8 +559,14 @@ h2 {
 
   .stats-grid,
   .project-grid,
+  .form-grid,
+  .form-columns,
   .split-section {
     grid-template-columns: 1fr;
+  }
+
+  .data-form.wide-form {
+    grid-column: auto;
   }
 }
 
