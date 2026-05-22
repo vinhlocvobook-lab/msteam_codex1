@@ -5,6 +5,8 @@ import {
   CheckCircle2,
   CircleDot,
   Clock3,
+  ChevronDown,
+  Send,
   Trash2,
   Inbox,
   Layers3,
@@ -194,6 +196,67 @@ const defaultTaskForm = {
   status: "todo",
   dueDate: ""
 };
+
+function QuickCapture({ onCaptured }) {
+  const [text, setText] = useState("");
+  const [projectCode, setProjectCode] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  async function submitCapture(event) {
+    event.preventDefault();
+    setSaving(true);
+    setNotice("");
+
+    try {
+      const result = await apiRequest("/api/quick-capture", {
+        method: "POST",
+        body: JSON.stringify({ text, projectCode })
+      });
+      setText("");
+      setProjectCode("");
+      await onCaptured();
+      setNotice(result.mode === "created_project_and_task" ? "Đã tạo project nháp và task" : "Đã tạo task");
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="quick-capture" id="quick-capture">
+      <div>
+        <span className="eyebrow">Giao việc nhanh</span>
+        <h2>Gõ một dòng để tạo task</h2>
+      </div>
+      <form onSubmit={submitCapture}>
+        <div className="capture-row">
+          <input
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            placeholder="VD: T3-2026 @Trinh soạn hợp đồng #Hợp-đồng !high due:2026-05-30"
+            required
+          />
+          <button type="submit" disabled={saving}>
+            <Send size={17} />
+            Tạo task
+          </button>
+        </div>
+        <div className="capture-options">
+          <label>
+            Mã project mới nếu chưa tìm thấy
+            <input value={projectCode} onChange={(event) => setProjectCode(event.target.value)} placeholder="VD: NEW-2026" />
+          </label>
+          <p>
+            Hỗ trợ: mã project, <code>@user</code>, <code>#stage</code>, <code>!high</code>, <code>due:YYYY-MM-DD</code>
+          </p>
+        </div>
+        {notice ? <span className="form-notice">{notice}</span> : null}
+      </form>
+    </section>
+  );
+}
 
 const projectStatusOptions = ["draft", "in_progress", "blocked", "paused", "done", "cancelled"];
 const stageStatusOptions = ["todo", "in_progress", "blocked", "done", "skipped"];
@@ -497,6 +560,7 @@ function ManagementPanel({ dashboard, projects, onChanged }) {
 }
 
 function QuickCreatePanel({ meta, projects, onCreated }) {
+  const [expanded, setExpanded] = useState(false);
   const [departmentForm, setDepartmentForm] = useState({ name: "", code: "" });
   const [userForm, setUserForm] = useState({ name: "", email: "", departmentId: "" });
   const [projectForm, setProjectForm] = useState(defaultProjectForm);
@@ -529,11 +593,21 @@ function QuickCreatePanel({ meta, projects, onCreated }) {
   }
 
   return (
-    <section className="section quick-create" id="quick-create">
-      <div className="section-header">
-        <h2>Nhập dữ liệu nhanh</h2>
+    <section className={`section quick-create ${expanded ? "is-expanded" : ""}`} id="quick-create">
+      <button type="button" className="accordion-header" onClick={() => setExpanded((value) => !value)}>
+        <span>
+          <strong>Nhập nâng cao</strong>
+          <small>Phòng ban, user, project, stage, task chi tiết</small>
+        </span>
+        <ChevronDown size={18} />
+      </button>
+
+      {expanded ? (
+        <>
+          <div className="section-header compact-section-header">
+            <h2>Form cấu hình chi tiết</h2>
         {notice ? <span className="form-notice">{notice}</span> : null}
-      </div>
+          </div>
 
       <div className="form-grid">
         <form
@@ -780,6 +854,8 @@ function QuickCreatePanel({ meta, projects, onCreated }) {
           </button>
         </form>
       </div>
+        </>
+      ) : null}
     </section>
   );
 }
@@ -850,6 +926,7 @@ function App() {
 
         <nav>
           <a className="active" href="#dashboard">Dashboard</a>
+          <a href="#quick-capture">Giao việc nhanh</a>
           <a href="#quick-create">Nhập dữ liệu</a>
           <a href="#manage">Quản lý nhanh</a>
           <a href="#projects">Projects</a>
@@ -870,6 +947,8 @@ function App() {
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm project, khách hàng, owner" />
           </label>
         </header>
+
+        <QuickCapture onCaptured={loadData} />
 
         <section className="stats-grid" id="dashboard">
           <StatCard icon={Layers3} label="Projects" value={dashboard.summary.projects} />

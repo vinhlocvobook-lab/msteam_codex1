@@ -86,6 +86,7 @@ npm run db:migrate --workspace apps/api
 
 - `GET /api/dashboard`
 - `GET /api/meta`
+- `POST /api/quick-capture`
 - `GET /api/projects`
 - `POST /api/projects`
 - `PUT /api/projects/:projectId`
@@ -104,3 +105,13 @@ npm run db:migrate --workspace apps/api
 - `POST /api/users`
 - `PUT /api/users/:userId`
 - `DELETE /api/users/:userId`
+
+## Quick capture
+
+Ví dụ nhập nhanh:
+
+```text
+T3-2026 @Trinh soạn hợp đồng #Hợp-đồng !high due:2026-05-30
+```
+
+Parser hiện hỗ trợ mã project, `@user`, `#stage`, `!critical|!high|!medium|!low`, và `due:YYYY-MM-DD`.

@@ -17,6 +17,7 @@ import {
   listDepartments,
   listProjectOptions,
   listUsers,
+  quickCapture,
   updateDepartment,
   updateProject,
   updateStage,
@@ -54,6 +55,14 @@ app.get("/api/meta", async (_req, res, next) => {
 app.get("/api/dashboard", async (_req, res, next) => {
   try {
     res.json(await getDashboard());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/quick-capture", async (req, res, next) => {
+  try {
+    res.status(201).json(await quickCapture(req.body));
   } catch (error) {
     next(error);
   }

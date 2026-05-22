@@ -4,6 +4,7 @@ const projectStatuses = new Set(["draft", "in_progress", "blocked", "paused", "d
 const stageStatuses = new Set(["todo", "in_progress", "blocked", "done", "skipped"]);
 const taskStatuses = new Set(["todo", "doing", "waiting", "blocked", "review", "done", "cancelled"]);
 const priorities = new Set(["critical", "high", "medium", "low"]);
+const defaultStageNames = ["Tư vấn", "Đấu thầu", "Hợp đồng", "Thanh toán", "Triển khai", "Nghiệm thu"];
 
 function requiredString(payload, field) {
   const value = payload[field]?.trim();
@@ -192,6 +193,73 @@ export async function listProjectOptions() {
   }));
 }
 
+function normalizeText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function parsePriority(text) {
+  const normalized = normalizeText(text);
+  const explicit = text.match(/!(critical|high|medium|low)\b/i)?.[1]?.toLowerCase();
+
+  if (explicit && priorities.has(explicit)) return explicit;
+  if (normalized.includes("khan cap") || normalized.includes("critical") || normalized.includes("gap")) return "critical";
+  if (normalized.includes("uu tien cao") || normalized.includes("priority cao") || normalized.includes(" high")) return "high";
+  if (normalized.includes("uu tien thap") || normalized.includes(" low")) return "low";
+
+  return "medium";
+}
+
+function parseDueDate(text) {
+  return text.match(/\bdue:(\d{4}-\d{2}-\d{2})\b/i)?.[1] || null;
+}
+
+function stripCaptureTokens(text) {
+  return text
+    .replace(/\bdue:\d{4}-\d{2}-\d{2}\b/gi, "")
+    .replace(/!(critical|high|medium|low)\b/gi, "")
+    .replace(/#[^\s]+/g, "")
+    .replace(/@[^\s]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function bestUserMatch(users, handle) {
+  if (!handle) return null;
+  const normalizedHandle = normalizeText(handle).replace(/^@/, "");
+
+  return users.find((user) => {
+    const name = normalizeText(user.name).replace(/\s+/g, "");
+    const emailPrefix = normalizeText(user.email).split("@")[0];
+    return name.includes(normalizedHandle) || emailPrefix.includes(normalizedHandle);
+  });
+}
+
+function bestStageMatch(stages, tag, text) {
+  const normalizedTag = normalizeText(tag).replace(/^#/, "").replace(/-/g, " ");
+  const normalizedText = normalizeText(text);
+
+  if (normalizedTag) {
+    const fromTag = stages.find((stage) => normalizeText(stage.name).includes(normalizedTag));
+    if (fromTag) return fromTag;
+  }
+
+  return stages.find((stage) => normalizedText.includes(normalizeText(stage.name)));
+}
+
+function bestProjectMatch(projects, text) {
+  const normalizedText = normalizeText(text);
+
+  return projects.find((project) => {
+    const code = normalizeText(project.code);
+    const name = normalizeText(project.name);
+    return normalizedText.includes(code) || normalizedText.includes(name);
+  });
+}
+
 async function getProjectForUpdate(id) {
   const [project] = await query(
     `
@@ -279,6 +347,81 @@ export async function createProject(payload) {
   }
 
   return { id: projectId, code, name, customer, ownerId, priority, status, dueDate };
+}
+
+export async function quickCapture(payload) {
+  const rawText = requiredString(payload, "text");
+  const [projects, users] = await Promise.all([listProjectOptions(), listUsers()]);
+  const project = bestProjectMatch(projects, rawText);
+  const assignee = bestUserMatch(users, rawText.match(/@([^\s]+)/)?.[1]);
+  const stage = project ? bestStageMatch(project.stages, rawText.match(/#([^\s]+)/)?.[1], rawText) : null;
+  const priority = parsePriority(rawText);
+  const dueDate = parseDueDate(rawText);
+  const cleanedTitle = stripCaptureTokens(project ? rawText.replace(project.code, "").replace(project.name, "") : rawText);
+  const title = cleanedTitle || rawText;
+
+  if (!project) {
+    const code = payload.projectCode?.trim() || `CAP-${Date.now()}`;
+    const createdProject = await createProject({
+      code,
+      name: payload.projectName?.trim() || code,
+      customer: null,
+      ownerId: assignee?.id || null,
+      priority,
+      status: "draft",
+      dueDate: null,
+      stageNames: defaultStageNames
+    });
+
+    const createdProjects = await listProjectOptions();
+    const newProject = createdProjects.find((item) => item.id === createdProject.id);
+    const defaultStage = newProject?.stages?.[0] || null;
+    const task = await createTask({
+      projectId: createdProject.id,
+      stageId: defaultStage?.id || null,
+      title,
+      description: rawText,
+      assigneeId: assignee?.id || null,
+      priority,
+      status: "todo",
+      dueDate
+    });
+
+    return {
+      mode: "created_project_and_task",
+      project: createdProject,
+      task,
+      parsed: {
+        assignee: assignee || null,
+        stage: defaultStage,
+        priority,
+        dueDate
+      }
+    };
+  }
+
+  const task = await createTask({
+    projectId: project.id,
+    stageId: stage?.id || null,
+    title,
+    description: rawText,
+    assigneeId: assignee?.id || null,
+    priority,
+    status: "todo",
+    dueDate
+  });
+
+  return {
+    mode: "created_task",
+    project,
+    task,
+    parsed: {
+      assignee: assignee || null,
+      stage: stage || null,
+      priority,
+      dueDate
+    }
+  };
 }
 
 export async function updateProject(id, payload) {
